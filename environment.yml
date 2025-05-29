@@ -209,4 +209,4 @@ dependencies:
       - weasel==0.4.1
       - window-ops==0.0.15
       - xxhash==3.5.0
-      - yarl==1.2.0
+      - yarl>=1.17.0,<2.0 # Adjusted for aiohttp compatibility
