@@ -163,8 +163,8 @@ dependencies:
       - pytesseract==0.3.13 # Used by autogluon.multimodal
       - pytorch-lightning==1.9.5 # Pinned for lit-saint, consider unpinning or matching autogluon's PTL if different
       - pytorch-metric-learning==2.8.1
-      - pytorch-tabnet # Let pip handle this
-      - pytorch-tabular # Let pip handle this
+      - pytorch-tabnet
+      - pytorch-tabular==1.1.1 # Pinned to a version with valid metadata
       - quantconnect-stubs==17122
       - ray==2.44.1
       - referencing==0.36.2
