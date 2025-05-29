@@ -4,247 +4,48 @@ channels:
   - http://conda.anaconda.org/gurobi
   - defaults
 dependencies:
-  - absl-py
-  - antlr-python-runtime
-  - arrow-cpp>=12.0.1,<13.0.0
-  - astor
-  - asttokens
-  - atk-1.0
-  - autograd
-  - autograd-gamma
-  - aws-c-auth
-  - aws-c-cal
-  - aws-c-common
-  - aws-c-compression
-  - aws-c-event-stream
-  - aws-c-http
-  - aws-c-io
-  - aws-c-mqtt
-  - aws-c-s3
-  - aws-c-sdkutils
-  - aws-checksums
-  - aws-crt-cpp
-  - aws-sdk-cpp
-  - blas
-  - boost-cpp
-  - bottleneck
-  - brotli
-  - brotli-python
-  - bzip2
-  - c-ares
-  - ca-certificates
-  - cached_property
-  - cairo
-  - catboost>=1.2
-  - certifi
-  - charset-normalizer
-  - colorama
-  - comm
-  - contourpy
-  - cpython
-  - cycler
-  - cython>=3.0
-  - decorator
-  - deprecated
-  - einops
-  - exceptiongroup
-  - executing
-  - expat
-  - filelock
-  - flake8
-  - font-ttf-dejavu-sans-mono
-  - font-ttf-inconsolata
-  - font-ttf-source-code-pro
-  - font-ttf-ubuntu
-  - fontconfig
-  - fonts-conda-ecosystem
-  - fonts-conda-forge
-  - fonttools
-  - formulaic
-  - freetype
-  - fribidi
-  - fsspec
-  - gdk-pixbuf
-  - gettext
-  - gflags
-  - giflib
-  - glib
-  - glib-tools
-  - glog
-  - gmp
-  - gmpy2
-  - graphite2
-  - graphlib-backport
-  - graphviz
-  - grpcio
-  - gtk2
-  - gts
-  - harfbuzz
-  - icu
-  - idna
-  - importlib-metadata
-  - iniconfig
-  - interface_meta
-  - ipython
-  - ipython_pygments_lexers
-  - ipywidgets
-  - jedi
-  - jinja2
-  - joblib
-  - jpeg
-  - jupyterlab_widgets
-  - khronos-opencl-icd-loader
-  - kiwisolver
-  - krb5
-  - lcms2
-  - lerc
-  - libabseil
-  - libarrow>=12.0.1,<13.0.0
-  - libblas
-  - libboost
-  - libboost-devel
-  - libboost-headers
-  - libbrotlicommon
-  - libbrotlidec
-  - libbrotlienc
-  - libcblas
-  - libcrc32c
-  - libcurl
-  - libcxx
-  - libdeflate
-  - libedit
-  - libev
-  - libevent
-  - libexpat
-  - libffi
-  - libgd
-  - libgfortran
-  - libgfortran5
-  - libglib
-  - libgoogle-cloud
-  - libgrpc
-  - libiconv
-  - libjpeg-turbo
-  - liblapack
-  - liblightgbm
-  - libltdl
-  - libnghttp2
-  - libopenblas
-  - libpng
-  - libprotobuf
-  - librsvg
-  - libsqlite
-  - libssh2
-  - libthrift
-  - libtiff
-  - libtool
-  - libutf8proc
-  - libuv
-  - libwebp
-  - libwebp-base
-  - libxgboost
-  - libxml2
-  - libzlib
-  - lifelines
-  - lightgbm>=4.0
-  - lightning-utilities
-  - llvm-openmp
-  - lz4-c
-  - markdown
-  - markdown-it-py
-  - markupsafe
-  - matplotlib-base
-  - matplotlib-inline
-  - mccabe
-  - mdurl
-  - mpc
-  - mpfr
-  - mpmath
-  - munkres
-  - narwhals
-  - ncurses
-  - networkx
-  - ngboost>=0.5
-  - nomkl
-  - numexpr
-  - numpy>=1.26
-  - numpy-base
-  - omegaconf
-  - opencl-headers
-  - openjpeg
-  - openssl
-  - opentelemetry-api
-  - orc
-  - pandas>=2.2
-  - pango
-  - parso
-  - pcre2
-  - pexpect
-  - pickleshare
-  - pillow
-  - pip
-  - pixman
-  - plotly
-  - pluggy
-  - prompt-toolkit
-  - protobuf
-  - ptyprocess
-  - pure_eval
-  - py-xgboost
-  - pycodestyle
-  - pyflakes
-  - pygments
-  - pyparsing
-  - pysocks
-  - pytest
+  # Core computation and ML - Conda managed
   - python=3.11
-  - python-dateutil
-  - python-graphviz
-  - python-tzdata
-  - python_abi
-  - pytorch-tabnet
-  - pytorch-tabular
-  - pytorch_tabular
-  - pytz
-  - pyyaml>=6.0
-  - qhull
-  - re2
-  - readline
-  - requests
-  - rich
-  - scikit-learn>=1.4
+  - pip
+  - numpy>=1.26
   - scipy
-  - setuptools
-  - six
-  - sleef
-  - snappy
-  - sqlite
-  - stack_data
-  - tensorboard
-  - tensorboard-data-server
-  - threadpoolctl
-  - tk
-  - tomli
-  - torchmetrics
-  - tqdm
-  - traitlets
-  - typing-extensions
-  - typing_extensions
-  - tzdata
-  - unicodedata2
-  - urllib3
-  - utf8proc
-  - wcwidth
-  - werkzeug
-  - wheel
-  - widgetsnbextension
-  - wrapt
+  - pandas>=2.2
+  - scikit-learn>=1.4
+  - cython>=3.0 # often a build dep for pip packages
+
+  # Key ML Libraries also available on Conda, specify versions for some stability
+  - catboost>=1.2
+  - lightgbm>=4.0
   - xgboost>=2.0
+  
+  # Arrow for Parquet, keep version range for now
+  - arrow-cpp>=12.0.1,<13.0.0
+  - libarrow>=12.0.1,<13.0.0
+  - pyarrow # This will be installed by pip, but listing here for clarity if needed
+
+  # Common utilities
+  - bzip2
+  - ca-certificates
+  - certifi
+  - openssl
+  - readline
+  - sqlite
+  - tk # Sometimes needed by matplotlib, even if not directly used for GUI
   - xz
-  - yaml
-  - zipp
   - zlib
-  - zstd
+  - ncurses # for terminal interactions
+
+  # Other potentially useful, but less critical, can be removed if still problematic
+  - joblib
+  - tqdm
+  - pyyaml>=6.0
+  - jinja2 # often a dep for templating in other libs
+  - requests
+  - setuptools
+  - wheel
+
+  # PIP section for packages best managed by pip or not on conda-forge easily
+  # or where we want specific versions from pip
   - pip:
       - accelerate==1.7.0
       - adagio==0.2.6
@@ -304,7 +105,7 @@ dependencies:
       - huggingface-hub==0.32.2
       - hydra-core==1.3.2
       - hyperopt==0.2.7
-      - imageio==2.37.0
+      - imageio==2.37.0 # Used by autogluon.multimodal
       - jmespath==1.0.1
       - json5==0.12.0
       - jsonschema==4.23.0
@@ -315,10 +116,11 @@ dependencies:
       - lean==1.0.218
       - lightning==2.5.1.post0
       - lit-saint==0.4.1
-      - llvmlite==0.44.0
+      - llvmlite==0.44.0 # Numba dependency
       - lxml==5.4.0
       - mako==1.3.10
       - marisa-trie==1.2.1
+      - matplotlib # Matplotlib itself via pip
       - mlforecast==0.13.6
       - model-index==0.1.11
       - msgpack==1.1.0
@@ -327,7 +129,7 @@ dependencies:
       - murmurhash==1.0.13
       - nlpaug==1.1.11
       - nltk==3.8.1
-      - numba==0.61.2
+      - numba==0.61.2 # For performance in some libraries
       - nvidia-ml-py3==7.352.0
       - opencensus==0.11.4
       - opencensus-context==0.1.3
@@ -338,9 +140,11 @@ dependencies:
       - ordered-set==4.1.0
       - orjson==3.10.18
       - packaging==24.2
-      - patsy==1.0.1
-      - pdf2image==1.17.0
+      - patsy==1.0.1 # Statsmodels dependency
+      - pdf2image==1.17.0 # Used by autogluon.multimodal
+      - pillow>=9.5.0 # More recent Pillow via pip, autogluon needs >9.2
       - platformdirs==4.3.8
+      - plotly # Plotly via pip
       - plum-dispatch==2.5.7
       - preshed==3.0.10
       - prometheus-client==0.22.0
@@ -349,25 +153,28 @@ dependencies:
       - psutil==7.0.0
       - py-spy==0.4.0
       - py4j==0.10.9.9
-      - pyarrow==20.0.0
+      - pyarrow==20.0.0 # Pinning pyarrow in pip as it's key
       - pyasn1==0.6.1
       - pyasn1-modules==0.4.2
       - pycparser==2.22
       - pycryptodome==3.23.0
       - pydantic==2.11.5
       - pydantic-core==2.33.2
-      - pytesseract==0.3.13
-      - pytorch-lightning==1.9.5
+      - pytesseract==0.3.13 # Used by autogluon.multimodal
+      - pytorch-lightning==1.9.5 # Pinned for lit-saint, consider unpinning or matching autogluon's PTL if different
       - pytorch-metric-learning==2.8.1
+      - pytorch-tabnet # Let pip handle this
+      - pytorch-tabular # Let pip handle this
       - quantconnect-stubs==17122
       - ray==2.44.1
       - referencing==0.36.2
       - regex==2024.11.6
+      - rich # Rich via pip
       - rpds-py==0.25.1
       - rsa==4.9.1
       - s3transfer==0.13.0
       - safetensors==0.5.3
-      - scikit-image==0.25.2
+      - scikit-image==0.25.2 # Used by autogluon.multimodal
       - sentencepiece==0.2.0
       - seqeval==1.2.2
       - shellingham==1.5.4
@@ -379,18 +186,19 @@ dependencies:
       - sqlalchemy==2.0.41
       - srsly==2.5.1
       - statsforecast==2.0.1
-      - statsmodels==0.14.4
-      - sympy==1.13.1
+      - statsmodels==0.14.4 # Statsmodels via pip
+      - sympy==1.13.1 # Pinned to avoid torch conflict
       - tabulate==0.9.0
+      - tensorboard # Tensorboard via pip
       - tensorboardx==2.6.2.2
       - text-unidecode==1.3
       - thinc==8.3.4
-      - tifffile==2025.5.26
-      - timm==1.0.3
+      - tifffile==2025.5.26 # Used by autogluon.multimodal
+      - timm==1.0.3 # Used by autogluon.multimodal
       - tokenizers==0.21.1
       - toolz==0.12.1
-      - torch==2.6.0
-      - torchvision==0.21.0
+      - torch==2.6.0 # Pinning torch for consistency
+      - torchvision==0.21.0 # Pinning torchvision to match torch
       - transformers==4.49.0
       - triad==0.9.8
       - typer==0.16.0
