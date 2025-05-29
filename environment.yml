@@ -6,7 +6,7 @@ channels:
 dependencies:
   - absl-py=2.3.0=pyhd8ed1ab_0
   - antlr-python-runtime=4.9.3=pyhd8ed1ab_1
-  - arrow-cpp=12.0.1=h9f6087d_8_cpu
+  - arrow-cpp>=12.0.1,<13.0.0
   - astor=0.8.1=pyhd8ed1ab_1
   - asttokens=3.0.0=pyhd8ed1ab_1
   - atk-1.0=2.38.0=hcb7b3dd_1
@@ -99,7 +99,7 @@ dependencies:
   - lcms2=2.16=he26ebf3_1
   - lerc=4.0.0=h313beb8_0
   - libabseil=20230125.3=cxx17_h13dd4ca_0
-  - libarrow=12.0.1=h0b136c2_8_cpu
+  - libarrow>=12.0.1,<13.0.0
   - libblas=3.9.0=1_h2ec9a88_netlib
   - libboost=1.84.0=h17eb2be_3
   - libboost-devel=1.84.0=hf450f58_3
