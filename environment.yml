@@ -19,8 +19,8 @@ dependencies:
   - xgboost>=2.0
   
   # Arrow for Parquet, ensure it's from conda-forge and versions are consistent
-  - arrow-cpp=14.0.2
-  - libarrow=14.0.2
+  - arrow-cpp>=14.0,<15.0
+  - libarrow>=14.0,<15.0
   - pyarrow=14.0.2
 
   # Common utilities
