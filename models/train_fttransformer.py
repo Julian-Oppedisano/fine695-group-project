@@ -5,12 +5,13 @@ import os
 import csv
 from datetime import datetime
 import typing
+from collections import defaultdict # Added for defaultdict
 
 # Add this to handle PyTorch 2.6+ loading issues with omegaconf
 from omegaconf import DictConfig
 from omegaconf.base import ContainerMetadata
 if hasattr(torch.serialization, 'add_safe_globals') and callable(torch.serialization.add_safe_globals):
-    torch.serialization.add_safe_globals([DictConfig, ContainerMetadata, typing.Any, dict])
+    torch.serialization.add_safe_globals([DictConfig, ContainerMetadata, typing.Any, dict, defaultdict]) # Added defaultdict
 
 from pytorch_tabular.tabular_model import TabularModel
 from pytorch_tabular.models import FTTransformerConfig
