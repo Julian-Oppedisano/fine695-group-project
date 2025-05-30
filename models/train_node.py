@@ -57,6 +57,7 @@ def main():
     print(f"--- Training {MODEL_NAME} Model ---")
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(f"Using device: {device}")
+    accelerator_setting = 'gpu' if device == 'cuda' else device # Map 'cuda' to 'gpu' for accelerator
 
     print("Loading imputed datasets...")
     try:
@@ -103,7 +104,7 @@ def main():
         auto_lr_find=False,
         batch_size=1024, 
         max_epochs=5, # Reduced for first run
-        accelerator=device,
+        accelerator=accelerator_setting, # Use the mapped setting
         devices=1 if device == 'cuda' else 1,
     )
 
