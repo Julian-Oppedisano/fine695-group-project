@@ -9,7 +9,7 @@ dependencies:
   - pip
   - numpy>=1.26
   - scipy
-  - pandas>=2.2
+  - pandas=2.2.2
   - scikit-learn>=1.4
   - cython>=3.0 # often a build dep for pip packages
 
@@ -18,10 +18,10 @@ dependencies:
   - lightgbm>=4.0
   - xgboost>=2.0
   
-  # Arrow for Parquet, keep version range for now
+  # Arrow for Parquet, ensure it's from conda-forge
   - arrow-cpp>=12.0.1,<13.0.0
   - libarrow>=12.0.1,<13.0.0
-  - pyarrow # This will be installed by pip, but listing here for clarity if needed
+  - pyarrow=14.0.2
 
   # Common utilities
   - bzip2
@@ -152,7 +152,6 @@ dependencies:
       - psutil==7.0.0
       - py-spy==0.4.0
       - py4j==0.10.9.9
-      - pyarrow==20.0.0 # Pinning pyarrow in pip as it's key
       - pyasn1==0.6.1
       - pyasn1-modules==0.4.2
       - pycparser==2.22
