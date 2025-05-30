@@ -18,10 +18,8 @@ dependencies:
   - lightgbm>=4.0
   - xgboost>=2.0
   
-  # Arrow for Parquet, ensure it's from conda-forge and versions are consistent
-  - arrow-cpp>=14.0,<15.0
-  - libarrow>=14.0,<15.0
-  - pyarrow=14.0.2
+  # Arrow for Parquet - let pyarrow handle C++ deps
+  - pyarrow=15.0.0
 
   # Common utilities
   - bzip2
