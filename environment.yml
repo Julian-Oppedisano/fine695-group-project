@@ -167,6 +167,7 @@ dependencies:
       - regex==2024.11.6
       - rich # Rich via pip
       - rpds-py==0.25.1
+      - rtdl # Added for Revisiting Tabular Deep Learning models
       - rsa==4.9.1
       - s3transfer==0.13.0
       - safetensors==0.5.3
