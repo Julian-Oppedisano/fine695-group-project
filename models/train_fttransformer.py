@@ -5,6 +5,11 @@ import os
 import csv
 from datetime import datetime
 
+# Add this to handle PyTorch 2.6+ loading issues with omegaconf
+from omegaconf import DictConfig
+if hasattr(torch.serialization, 'add_safe_globals') and callable(torch.serialization.add_safe_globals):
+    torch.serialization.add_safe_globals([DictConfig])
+
 from pytorch_tabular.tabular_model import TabularModel
 from pytorch_tabular.models import FTTransformerConfig
 from pytorch_tabular.config import DataConfig, TrainerConfig, OptimizerConfig, ExperimentConfig
