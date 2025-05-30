@@ -229,8 +229,9 @@ class TabTransformerLightning(pl.LightningModule):
     def on_test_epoch_end(self):
         # Clear the collected outputs after the test epoch ends
         # This is important if trainer.test() might be called multiple times on the same model instance
-        if hasattr(self, 'test_step_outputs'): # Check if attribute exists
-            self.test_step_outputs.clear()
+        # if hasattr(self, 'test_step_outputs'): # Check if attribute exists
+        #     self.test_step_outputs.clear() # Temporarily removed to allow main() to access outputs
+        pass # Or remove the method if it does nothing else
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.lr) # Changed to AdamW
