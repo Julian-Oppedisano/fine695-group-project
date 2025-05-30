@@ -8,6 +8,8 @@ from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 import joblib
 import os
+import csv # Added for CSV logging
+from datetime import datetime # Added for timestamp
 
 # --- Configuration ---
 MODEL_NAME = "TabTransformer"
@@ -26,6 +28,28 @@ PREDICTIONS_PATH = os.path.join(PREDICTIONS_DIR, f'predictions_{MODEL_NAME.lower
 TARGET_COLUMN = 'stock_exret'
 DATE_COLUMN = 'date'
 ID_COLUMN = 'permno'
+
+# --- Define CSV Logging Function ---
+RESULTS_DIR = 'results'
+CSV_FILE = os.path.join(RESULTS_DIR, 'performance_summary.csv')
+
+def log_metrics_to_csv(model_name, metrics_dict):
+    os.makedirs(RESULTS_DIR, exist_ok=True)
+    file_exists = os.path.isfile(CSV_FILE)
+    
+    metric_keys = sorted([k for k in metrics_dict.keys() if k not in ['timestamp', 'model_name']])
+    fieldnames = ['timestamp', 'model_name'] + metric_keys
+    
+    with open(CSV_FILE, 'a', newline='') as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        
+        if not file_exists or os.path.getsize(CSV_FILE) == 0:
+            writer.writeheader()
+            
+        log_entry = {'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'model_name': model_name}
+        log_entry.update(metrics_dict)
+        writer.writerow(log_entry)
+# --- End CSV Logging Function ---
 
 # --- Helper Functions ---
 def get_predictor_columns(df):
@@ -384,6 +408,30 @@ def main():
     print(f"Predictions saved to {PREDICTIONS_PATH}")
     print(f"Model checkpoint saved to: {checkpoint_callback.best_model_path}")
     print(f"--- {MODEL_NAME} Model Training Complete ---")
+
+    # Log metrics to CSV
+    metrics_dict = {
+        'out_of_sample_r2': oos_r2,
+        'out_of_sample_mse': oos_mse
+    }
+    log_metrics_to_csv(MODEL_NAME, metrics_dict)
+
+    # --- Log Metrics ---
+    metrics_to_log = {
+        'oos_r2': oos_r2, # Assuming test set is the hold-out validation
+        'mse': oos_mse,
+    }
+    if 'log_metrics_to_csv' in globals() and 'MODEL_NAME' in globals():
+        log_metrics_to_csv(MODEL_NAME, metrics_to_log)
+        if 'CSV_FILE' in globals():
+            print(f"Metrics logged to {CSV_FILE}")
+        else:
+            print("Metrics logged (CSV_FILE path not found for message).")
+    else:
+        print("log_metrics_to_csv function or MODEL_NAME not found. Skipping CSV logging.")
+    # --- End Log Metrics ---
+
+    print(f"\n--- {MODEL_NAME} Model Script Complete ---")
 
 if __name__ == '__main__':
     main() 

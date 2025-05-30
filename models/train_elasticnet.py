@@ -5,6 +5,8 @@ from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.preprocessing import StandardScaler
 import joblib
 import os
+import csv # Added for CSV logging
+from datetime import datetime # Added for timestamp
 
 # --- Configuration ---
 PROCESSED_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'processed')
@@ -16,6 +18,28 @@ PREDICTIONS_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'predict
 
 MODEL_NAME = 'elasticnet_cv'
 TARGET_COLUMN = 'stock_exret'
+
+# --- Define CSV Logging Function ---
+RESULTS_DIR = 'results'
+CSV_FILE = os.path.join(RESULTS_DIR, 'performance_summary.csv')
+
+def log_metrics_to_csv(model_name, metrics_dict):
+    os.makedirs(RESULTS_DIR, exist_ok=True)
+    file_exists = os.path.isfile(CSV_FILE)
+    
+    metric_keys = sorted([k for k in metrics_dict.keys() if k not in ['timestamp', 'model_name']])
+    fieldnames = ['timestamp', 'model_name'] + metric_keys
+    
+    with open(CSV_FILE, 'a', newline='') as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        
+        if not file_exists or os.path.getsize(CSV_FILE) == 0:
+            writer.writeheader()
+            
+        log_entry = {'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'model_name': model_name}
+        log_entry.update(metrics_dict)
+        writer.writerow(log_entry)
+# --- End CSV Logging Function ---
 
 def get_predictor_columns(df, target_col):
     identifier_cols = ['permno', 'stock_ticker', 'CUSIP', 'comp_name']
@@ -120,8 +144,18 @@ def main():
     # --- Save Model (The best estimator found by CV) ---
     os.makedirs(SAVED_MODEL_DIR, exist_ok=True)
     model_save_path = os.path.join(SAVED_MODEL_DIR, f"{MODEL_NAME}.joblib")
-    joblib.dump(elastic_cv_model, model_save_path)
-    print(f"ElasticNetCV model saved to {model_save_path}")
+    try:
+        joblib.dump(elastic_cv_model, model_save_path)
+        print(f"Model saved to {model_save_path}")
+    except Exception as e:
+        print(f"Error saving model: {e}")
+
+    scaler_save_path = os.path.join(SAVED_MODEL_DIR, f"{MODEL_NAME}_scaler.joblib")
+    try:
+        joblib.dump(scaler, scaler_save_path)
+        print(f"Scaler saved to {scaler_save_path}")
+    except Exception as e:
+        print(f"Error saving scaler: {e}")
 
     # --- Save Predictions ---
     os.makedirs(PREDICTIONS_DIR, exist_ok=True)
@@ -129,9 +163,28 @@ def main():
     predictions_df['actual_' + TARGET_COLUMN] = y_validation.values
     predictions_df['predicted_' + TARGET_COLUMN] = y_pred_validation
     predictions_save_path = os.path.join(PREDICTIONS_DIR, f"{MODEL_NAME}_validation_predictions.parquet")
-    predictions_df.to_parquet(predictions_save_path, index=False)
-    print(f"Validation predictions saved to {predictions_save_path}")
+    try:
+        predictions_df.to_parquet(predictions_save_path, index=False)
+        print(f"Validation predictions saved to {predictions_save_path}")
+    except Exception as e:
+        print(f"Error saving predictions: {e}")
         
+    # --- Log Metrics ---
+    metrics_to_log = {
+        'oos_r2': oos_r2,
+        'mse': mse,
+        'best_alpha': elastic_cv_model.alpha_ # Capture the best alpha
+    }
+    if 'log_metrics_to_csv' in globals() and 'MODEL_NAME' in globals():
+        log_metrics_to_csv(MODEL_NAME, metrics_to_log)
+        if 'CSV_FILE' in globals():
+            print(f"Metrics logged to {CSV_FILE}")
+        else:
+            print("Metrics logged (CSV_FILE path not found for message).")
+    else:
+        print("log_metrics_to_csv function or MODEL_NAME not found. Skipping CSV logging.")
+    # --- End Log Metrics ---
+
     print(f"\n--- {MODEL_NAME} Model Script Complete ---")
 
 if __name__ == "__main__":
