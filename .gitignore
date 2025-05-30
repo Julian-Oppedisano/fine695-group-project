@@ -138,7 +138,7 @@ cython_debug/
 # QuantConnect (QC)
 # Lean CLI generated files
 **/config.json
-**/data/*
+# **/data/*   # Commented out to track project data
 !**/data/README.md
 **/.ipynb_checkpoints/*
 **/backtests/*
@@ -152,7 +152,7 @@ lightning_logs/
 .lightning/
 
 # Parquet cache files
-*.parquet
+# *.parquet    # Commented out to track project data files
 
 # OS-generated files
 .DS_Store
