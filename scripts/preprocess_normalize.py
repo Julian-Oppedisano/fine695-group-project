@@ -25,6 +25,20 @@ def get_predictor_columns(df):
     print(f"Identified {len(numeric_predictor_cols)} numeric predictor columns for normalization.")
     return numeric_predictor_cols
 
+def calculate_overall_train_stats(df, predictor_cols):
+    """Calculates overall mean and std for each predictor on the training set for fallback."""
+    print("Calculating overall train mean and std for fallback...")
+    overall_means = df[predictor_cols].mean()
+    overall_stds = df[predictor_cols].std()
+    
+    # Create a DataFrame where index is predictor_cols, and columns are 'overall_mean', 'overall_std'
+    overall_stats = pd.DataFrame({
+        'overall_mean': overall_means,
+        'overall_std': overall_stds
+    }) # Index will be predictor_cols
+    print("Overall train mean and std calculation complete.")
+    return overall_stats
+
 def calculate_monthly_stats(df, predictor_cols, group_cols=['year', 'month']):
     """Calculates mean and std for each predictor, by month, on the training set."""
     print("Calculating monthly mean and std on training data...")
@@ -41,8 +55,8 @@ def calculate_monthly_stats(df, predictor_cols, group_cols=['year', 'month']):
     print("Monthly mean and std calculation complete.")
     return monthly_stats
 
-def normalize_dataframe(df, predictor_cols, monthly_stats, group_cols=['year', 'month']):
-    """Applies normalization to a DataFrame using pre-calculated monthly stats."""
+def normalize_dataframe(df, predictor_cols, monthly_stats, overall_train_stats, group_cols=['year', 'month']):
+    """Applies normalization to a DataFrame using pre-calculated monthly and overall train stats."""
     print(f"Applying normalization... Original shape: {df.shape}")
     df_normalized = df.copy()
 
@@ -60,17 +74,66 @@ def normalize_dataframe(df, predictor_cols, monthly_stats, group_cols=['year', '
         mean_col = f"{col}_mean"
         std_col = f"{col}_std"
 
+        overall_mean_val = overall_train_stats.loc[col, 'overall_mean']
+        overall_std_val = overall_train_stats.loc[col, 'overall_std']
+
         if mean_col not in df_normalized.columns or std_col not in df_normalized.columns:
-            print(f"Warning: Stats columns for '{col}' ('{mean_col}', '{std_col}') not found after merge. Skipping normalization for this column.")
-            continue
+            print(f"Warning: Monthly stats columns for '{col}' ('{mean_col}', '{std_col}') not found after merge.")
+            # Attempt to use overall train stats as fallback
+            if pd.isna(overall_mean_val) or pd.isna(overall_std_val):
+                print(f"  Overall train stats for '{col}' also NaN. Skipping normalization for this column.")
+                # Optionally, fill with 0 or leave as is if it should remain NaN for imputation
+                # For now, let's fill with 0 if it was supposed to be normalized but couldn't be.
+                # df_normalized[col] = 0 # Or leave as NaN if impute script handles it.
+                # Let's leave it as is for now to see if NaNs persist to imputation if all stats are bad.
+                continue
+            
+            print(f"  Using overall train stats for '{col}'.")
+            if overall_std_val == 0: # Handle overall std deviation being zero
+                df_normalized[col] = 0 # All values are same as mean, so normalized is 0
+            else:
+                df_normalized[col] = (df_normalized[col] - overall_mean_val) / overall_std_val
+            continue # Move to next column
         
-        # Normalize: (value - mean) / std
-        # Handle std == 0 (or very close to 0) to avoid division by zero or large numbers.
-        # If std is 0, it means all values in that group were the same. (value - mean) will be 0.
-        # So, the normalized value should be 0.
-        df_normalized[col] = (df_normalized[col] - df_normalized[mean_col]) / df_normalized[std_col]
-        df_normalized[col] = df_normalized[col].fillna(0) # Fill NaNs from division by zero std with 0
-        # Also, if a std was NaN (e.g. single observation in a group), result will be NaN, fill with 0.
+        # Original logic using monthly stats
+        # df_normalized[col] = (df_normalized[col] - df_normalized[mean_col]) / df_normalized[std_col]
+        # df_normalized[col] = df_normalized[col].fillna(0) # Fill NaNs from division by zero std with 0
+
+        # Revised logic: apply monthly, then overall if monthly resulted in NaN (e.g. std_col was NaN)
+        # Step 1: Calculate with monthly stats
+        temp_normalized_col = (df_normalized[col] - df_normalized[mean_col]) / df_normalized[std_col]
+
+        # Step 2: Identify where monthly normalization failed (result is NaN) OR where std was zero
+        # If df_normalized[std_col] is 0, result of division is inf/-inf or nan. If it was already 0, (0-0)/0 -> nan
+        # If df_normalized[std_col] is nan, result of division is nan.
+        
+        # Where std_monthly is 0, normalized value should be 0.
+        # Where std_monthly is >0, use the calculated value.
+        # Where std_monthly is NaN (or original value was NaN), try overall.
+        
+        final_col_values = []
+        for i in range(len(df_normalized)):
+            val = df_normalized[col].iloc[i]
+            m_mean = df_normalized[mean_col].iloc[i]
+            m_std = df_normalized[std_col].iloc[i]
+
+            if pd.notna(val):
+                if pd.notna(m_mean) and pd.notna(m_std):
+                    if m_std != 0:
+                        final_col_values.append((val - m_mean) / m_std)
+                    else: # monthly std is 0
+                        final_col_values.append(0.0)
+                elif pd.notna(overall_mean_val) and pd.notna(overall_std_val): # monthly failed, try overall
+                    if overall_std_val != 0:
+                        final_col_values.append((val - overall_mean_val) / overall_std_val)
+                    else: # overall std is 0
+                        final_col_values.append(0.0)
+                else: # all stats failed
+                    final_col_values.append(np.nan) # Leave as NaN for final imputation 
+            else: # original value was NaN
+                final_col_values.append(np.nan) # Preserve NaN for final imputation
+        
+        df_normalized[col] = final_col_values
 
     # Drop the temporary mean and std columns for all predictors
     stat_cols_to_drop = [f"{c}_mean" for c in predictor_cols] + [f"{c}_std" for c in predictor_cols]
@@ -102,13 +165,14 @@ def main():
     if not predictor_cols: print("Error: No predictors identified. Aborting."); return
 
     monthly_train_stats = calculate_monthly_stats(train_df, predictor_cols)
+    overall_train_stats = calculate_overall_train_stats(train_df, predictor_cols) # Calculate overall stats
 
     print("\nNormalizing Train set...")
-    train_normalized_df = normalize_dataframe(train_df, predictor_cols, monthly_train_stats)
+    train_normalized_df = normalize_dataframe(train_df, predictor_cols, monthly_train_stats, overall_train_stats)
     print("\nNormalizing Validation set...")
-    validation_normalized_df = normalize_dataframe(validation_df, predictor_cols, monthly_train_stats)
+    validation_normalized_df = normalize_dataframe(validation_df, predictor_cols, monthly_train_stats, overall_train_stats)
     print("\nNormalizing Test set...")
-    test_normalized_df = normalize_dataframe(test_df, predictor_cols, monthly_train_stats)
+    test_normalized_df = normalize_dataframe(test_df, predictor_cols, monthly_train_stats, overall_train_stats)
 
     print("\nSaving normalized datasets...")
     try:

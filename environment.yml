@@ -1,5 +1,6 @@
 name: fine695
 channels:
+  - pytorch # Add pytorch channel for better torch builds
   - conda-forge
   - gurobi # Added for Gurobi, even if not strictly needed by all models
   - defaults
@@ -12,6 +13,13 @@ dependencies:
   - pandas=2.2.2
   - scikit-learn>=1.4
   - cython>=3.0 # often a build dep for pip packages
+
+  # PyTorch related - managed by Conda
+  - pytorch>=1.13.0,<2.0.0 # For RTDL compatibility
+  - torchvision<0.17.0 # Compatible with PyTorch 1.13.x
+  # - torchaudio # Keeping commented out for now
+  - pytorch-lightning>=1.9.0,<2.0.0 # For Python 3.11 compatibility
+  - pytorch-tabnet==4.1.0 
 
   # Key ML Libraries also available on Conda, specify versions for some stability
   - catboost>=1.2
@@ -45,7 +53,7 @@ dependencies:
   # PIP section for packages best managed by pip or not on conda-forge easily
   # or where we want specific versions from pip
   - pip:
-      - accelerate==1.7.0
+      # - accelerate==1.7.0 # REMOVED - Conflicts with torch<2.0 requirement for rtdl
       - adagio==0.2.6
       - aiohappyeyeballs==2.6.1
       - aiohttp==3.12.4
@@ -55,13 +63,6 @@ dependencies:
       - annotated-types==0.7.0
       - appdirs==1.4.4
       - attrs==25.3.0
-      - autogluon==1.3.1
-      - autogluon-common==1.3.1
-      - autogluon-core==1.3.1
-      - autogluon-features==1.3.1
-      - autogluon-multimodal==1.3.1
-      - autogluon-tabular==1.3.1
-      - autogluon-timeseries==1.3.1
       - beartype==0.21.0
       - beautifulsoup4==4.13.4
       - blis==1.2.1
@@ -85,7 +86,6 @@ dependencies:
       - distlib==0.3.9
       - docker==7.1.0
       - evaluate==0.4.3
-      - fastai==2.8.2
       - fastcore==1.8.2
       - fastdownload==0.0.7
       - fastprogress==1.0.3
@@ -112,7 +112,6 @@ dependencies:
       - language-data==1.3.0
       - lazy-loader==0.4
       - lean==1.0.218 # QuantConnect Lean CLI
-      - lightning>=1.9.0,<2.0.0 # Adjusted for pytorch-tabular 1.1.1 compatibility, was <2.5.0,>=2.4.0
       # - lit-saint # Temporarily commented out, was lit-saint==0.4.1
       - llvmlite==0.44.0 # Numba dependency
       - lxml==5.4.0
@@ -158,9 +157,6 @@ dependencies:
       - pydantic==2.11.5
       - pydantic-core==2.33.2
       - pytesseract==0.3.13 # Used by autogluon.multimodal
-      - pytorch-metric-learning==2.8.1
-      - pytorch-tabnet==4.1.0 # Changed from 4.1.post1
-      - pytorch-tabular==1.1.1 # Other tabular models with PyTorch, pinned
       - quantconnect-stubs==17122
       - ray==2.44.1
       - referencing==0.36.2
@@ -191,11 +187,8 @@ dependencies:
       - text-unidecode==1.3
       - thinc==8.3.4
       - tifffile==2025.5.26 # Used by autogluon.multimodal
-      - timm==1.0.3 # Used by autogluon.multimodal
       - tokenizers==0.21.1
-      - toolz==0.12.1
-      - torch==2.6.0 # Pinning torch for consistency
-      - torchvision==0.21.0 # Pinning torchvision to match torch
+      # torch, torchvision, torchaudio are now managed by conda directly
       - transformers==4.49.0
       - triad==0.9.8
       - typer==0.16.0
@@ -208,13 +201,4 @@ dependencies:
       - xxhash==3.5.0
       - yarl>=1.17.0,<2.0 # Adjusted for aiohttp compatibility
       - python-json-logger==2.0.7
-      - pytorch-forecasting==1.1.0 # Changed from 1.0.0
       - pyyaml==6.0.1 # YAML parser
-
-  # PyTorch related
-  - pytorch>=2.0.0 # Adjusted for pytorch-tabular, consider specific if needed
-  - torchvision
-  - torchaudio
-  - pytorch-lightning>=1.9.0,<2.0.0 # Changed from ~=1.8.0
-  # - pytorch-lightning-bolts
-  - pytorch-tabnet==4.1.0 # Version 4.0 has an issue with pytorch 1.12, using 4.1.0

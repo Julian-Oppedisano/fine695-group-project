@@ -40,6 +40,15 @@ def get_predictor_columns(df):
     # print(f"First 5 numeric predictors: {numeric_predictor_cols[:5]}")
     return numeric_predictor_cols
 
+def calculate_overall_train_percentiles(df, predictor_cols):
+    """Calculates overall 1st and 99th percentiles on the training set for fallback."""
+    print(f"Calculating overall train percentiles ({LOWER_PERCENTILE*100}th/{UPPER_PERCENTILE*100}th) for fallback...")
+    overall_bounds = df[predictor_cols].quantile([LOWER_PERCENTILE, UPPER_PERCENTILE])
+    # Resulting MultiIndex columns: (percentile_level_1=0.01 or 0.99) for each predictor
+    # overall_bounds.loc[LOWER_PERCENTILE, col] gives the lower bound for 'col'
+    print("Overall train percentile calculation complete.")
+    return overall_bounds
+
 def calculate_monthly_percentiles(df, predictor_cols, group_cols=['year', 'month']):
     """Calculates 1st and 99th percentiles for each predictor, by month, on the training set."""
     print(f"Calculating monthly percentiles on training data ({LOWER_PERCENTILE*100}th/{UPPER_PERCENTILE*100}th)... ")
@@ -49,8 +58,8 @@ def calculate_monthly_percentiles(df, predictor_cols, group_cols=['year', 'month
     print("Monthly percentile calculation complete.")
     return monthly_bounds
 
-def winsorize_dataframe(df, predictor_cols, monthly_bounds, group_cols=['year', 'month']):
-    """Applies winsorization to a DataFrame using pre-calculated monthly bounds."""
+def winsorize_dataframe(df, predictor_cols, monthly_bounds, overall_train_bounds, group_cols=['year', 'month']):
+    """Applies winsorization to a DataFrame using pre-calculated monthly bounds and overall train bounds for fallback."""
     print(f"Applying winsorization... Original shape: {df.shape}")
     df_winsorized = df.copy()
 
@@ -65,34 +74,35 @@ def winsorize_dataframe(df, predictor_cols, monthly_bounds, group_cols=['year', 
         if col not in df_winsorized.columns:
             print(f"Warning: Predictor column '{col}' not found in DataFrame during winsorization. Skipping.")
             continue
-            
-        # print(f"Winsorizing column: {col}") # Verbose
-        # Prepare bounds for this specific column
-        # The monthly_bounds df has MultiIndex columns like (predictor, percentile_value)
-        # e.g., ('age', 0.01) and ('age', 0.99)
-        lower_bound_col = (col, LOWER_PERCENTILE)
-        upper_bound_col = (col, UPPER_PERCENTILE)
-
-        if lower_bound_col not in monthly_bounds.columns or upper_bound_col not in monthly_bounds.columns:
-            print(f"Warning: Percentile bounds for column '{col}' not found in monthly_bounds. Skipping winsorization for this column.")
-            continue
-
-        current_col_bounds = monthly_bounds[[lower_bound_col, upper_bound_col]].copy()
-        current_col_bounds.columns = ['lower', 'upper'] # Simplify column names
         
-        # Merge these bounds back to the df_winsorized for this column
-        # Ensure df_winsorized has 'year' and 'month' columns available for merging
-        df_winsorized = pd.merge(df_winsorized, current_col_bounds, on=group_cols, how='left', suffixes=('', '_bounds'))
-        # df_winsorized = df_winsorized.set_index(group_cols, append=True)
-        # df_winsorized = df_winsorized.join(current_col_bounds, how='left')
-        # df_winsorized = df_winsorized.reset_index(level=group_cols)
+        lower_bound_col_monthly_name = (col, LOWER_PERCENTILE)
+        upper_bound_col_monthly_name = (col, UPPER_PERCENTILE)
 
-        # Apply clipping using the merged columns
-        # If current_col_bounds had columns 'lower' and 'upper', they are now in df_winsorized
-        df_winsorized[col] = df_winsorized[col].clip(lower=df_winsorized['lower'], upper=df_winsorized['upper'])
+        if lower_bound_col_monthly_name not in monthly_bounds.columns or upper_bound_col_monthly_name not in monthly_bounds.columns:
+            print(f"Warning: Monthly percentile bounds for column '{col}' not found in monthly_bounds. Attempting to use overall train bounds only.")
+            # Directly use overall train bounds if monthly are completely missing for this column
+            overall_lower_b = overall_train_bounds.loc[LOWER_PERCENTILE, col]
+            overall_upper_b = overall_train_bounds.loc[UPPER_PERCENTILE, col]
+            df_winsorized[col] = df_winsorized[col].clip(lower=overall_lower_b, upper=overall_upper_b)
+            continue # Move to next column
+
+        current_col_monthly_bounds = monthly_bounds[[lower_bound_col_monthly_name, upper_bound_col_monthly_name]].copy()
+        current_col_monthly_bounds.columns = ['monthly_lower', 'monthly_upper'] # Simplify column names
         
-        # Drop the temporary lower/upper bound columns
-        df_winsorized.drop(columns=['lower', 'upper'], inplace=True)
+        df_winsorized = pd.merge(df_winsorized, current_col_monthly_bounds, on=group_cols, how='left')
+        
+        # Get overall bounds for this column for fallback
+        overall_col_lower_bound = overall_train_bounds.loc[LOWER_PERCENTILE, col]
+        overall_col_upper_bound = overall_train_bounds.loc[UPPER_PERCENTILE, col]
+
+        # Apply clipping: use monthly if available, otherwise use overall train if monthly are NaN
+        df_winsorized[col] = np.where(
+            df_winsorized['monthly_lower'].notna() & df_winsorized['monthly_upper'].notna(),
+            df_winsorized[col].clip(lower=df_winsorized['monthly_lower'], upper=df_winsorized['monthly_upper']),
+            df_winsorized[col].clip(lower=overall_col_lower_bound, upper=overall_col_upper_bound)
+        )
+        
+        df_winsorized.drop(columns=['monthly_lower', 'monthly_upper'], inplace=True)
 
     print(f"Winsorization application complete. Shape after: {df_winsorized.shape}")
     return df_winsorized
@@ -129,15 +139,18 @@ def main():
     # 1. Calculate monthly percentiles on the TRAIN set
     monthly_perc_bounds = calculate_monthly_percentiles(train_df, predictor_cols)
 
+    # 1b. Calculate overall percentiles on the TRAIN set for fallback
+    overall_train_perc_bounds = calculate_overall_train_percentiles(train_df, predictor_cols)
+
     # 2. Apply these bounds to winsorize TRAIN, VALIDATION, and TEST sets
     print("\nWinsorizing Train set...")
-    train_winsorized_df = winsorize_dataframe(train_df, predictor_cols, monthly_perc_bounds)
+    train_winsorized_df = winsorize_dataframe(train_df, predictor_cols, monthly_perc_bounds, overall_train_perc_bounds)
     
     print("\nWinsorizing Validation set...")
-    validation_winsorized_df = winsorize_dataframe(validation_df, predictor_cols, monthly_perc_bounds)
+    validation_winsorized_df = winsorize_dataframe(validation_df, predictor_cols, monthly_perc_bounds, overall_train_perc_bounds)
     
     print("\nWinsorizing Test set...")
-    test_winsorized_df = winsorize_dataframe(test_df, predictor_cols, monthly_perc_bounds)
+    test_winsorized_df = winsorize_dataframe(test_df, predictor_cols, monthly_perc_bounds, overall_train_perc_bounds)
 
     # Save winsorized data
     print("\nSaving winsorized datasets...")

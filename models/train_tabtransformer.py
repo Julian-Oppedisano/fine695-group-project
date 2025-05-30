@@ -20,6 +20,7 @@ TEST_IMPUTED_INPUT_PATH = os.path.join(PROCESSED_DIR, 'test_features_imputed.par
 
 SAVED_MODEL_DIR = os.path.join(os.path.dirname(__file__), '..', 'saved_models')
 PREDICTIONS_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'predictions')
+RESULTS_PRED_DIR = os.path.join(os.path.dirname(__file__), '..', 'results') # For CSV predictions
 MODEL_PATH = os.path.join(SAVED_MODEL_DIR, f'{MODEL_NAME.lower()}_model.ckpt') # For PyTorch Lightning checkpoint
 SCALER_PATH = os.path.join(SAVED_MODEL_DIR, f'{MODEL_NAME.lower()}_scaler.joblib')
 LABEL_ENCODERS_PATH = os.path.join(SAVED_MODEL_DIR, f'{MODEL_NAME.lower()}_label_encoders.joblib')
@@ -404,18 +405,26 @@ def main():
         DATE_COLUMN: pred_df_ids[DATE_COLUMN],
         'prediction': all_predictions
     })
+    predictions_df['actual_stock_exret'] = all_targets
+    predictions_df['predicted_stock_exret'] = all_predictions
+
     os.makedirs(PREDICTIONS_DIR, exist_ok=True)
     predictions_df.to_parquet(PREDICTIONS_PATH, index=False)
-    print(f"Predictions saved to {PREDICTIONS_PATH}")
-    print(f"Model checkpoint saved to: {checkpoint_callback.best_model_path}")
-    print(f"--- {MODEL_NAME} Model Training Complete ---")
+    print(f"Test predictions saved to {PREDICTIONS_PATH} (Parquet format)")
 
-    # Log metrics to CSV
-    metrics_dict = {
-        'out_of_sample_r2': oos_r2,
-        'out_of_sample_mse': oos_mse
-    }
-    log_metrics_to_csv(MODEL_NAME, metrics_dict)
+    # --- Save Test Predictions (CSV) ---
+    # Prepare DataFrame for CSV output: permno, date, prediction
+    csv_predictions_df = predictions_df[[ID_COLUMN, DATE_COLUMN]].copy()
+    csv_predictions_df['prediction'] = predictions_df['predicted_stock_exret']
+    
+    os.makedirs(RESULTS_PRED_DIR, exist_ok=True)
+    # Define CSV output path e.g., results/pred_tabtransformer.csv or results/pred_tt.csv
+    # Using MODEL_NAME.lower() for consistency, which is "tabtransformer"
+    csv_output_filename = f"pred_{MODEL_NAME.lower()}.csv" 
+    csv_predictions_save_path = os.path.join(RESULTS_PRED_DIR, csv_output_filename)
+    
+    csv_predictions_df.to_csv(csv_predictions_save_path, index=False)
+    print(f"Test predictions also saved to {csv_predictions_save_path} (CSV format)")
 
     # --- Log Metrics ---
     metrics_to_log = {

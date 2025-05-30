@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import xgboost as xgb
 from sklearn.metrics import mean_squared_error, r2_score
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, LabelEncoder
 import joblib
 import os
 import csv
@@ -17,8 +17,9 @@ TEST_IMPUTED_INPUT_PATH = os.path.join(PROCESSED_DIR, 'test_features_imputed.par
 
 SAVED_MODEL_DIR = os.path.join(os.path.dirname(__file__), '..', 'saved_models')
 PREDICTIONS_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'predictions')
-MODEL_PATH = os.path.join(SAVED_MODEL_DIR, f'{MODEL_NAME.lower()}_model.joblib') # Using joblib for consistency
+MODEL_PATH = os.path.join(SAVED_MODEL_DIR, f'{MODEL_NAME.lower()}_model.joblib')
 SCALER_PATH = os.path.join(SAVED_MODEL_DIR, f'{MODEL_NAME.lower()}_scaler.joblib')
+LABEL_ENCODERS_PATH = os.path.join(SAVED_MODEL_DIR, f'{MODEL_NAME.lower()}_label_encoders.joblib') # For explicit categoricals
 PREDICTIONS_PATH = os.path.join(PREDICTIONS_DIR, f'predictions_{MODEL_NAME.lower()}.parquet')
 
 TARGET_COLUMN = 'stock_exret'
@@ -52,10 +53,18 @@ def get_predictor_columns(df):
     excluded_cols = [TARGET_COLUMN, DATE_COLUMN, ID_COLUMN, 'year', 'month', 'day', 
                      'eom_date', 'size_class', 'comb_code', 'month_num',
                      'stock_exret_t_plus_1', 'stock_exret_t_plus_2', 
-                     'stock_exret_t_plus_3', 'stock_exret_t_plus_6', 'stock_exret_t_plus_12']
-    predictor_cols = [col for col in df.columns if col not in excluded_cols and not col.startswith('month_')]
-    # XGBoost can handle categorical features if they are label encoded or of type 'category'
-    # For now, ensure all are numeric or handle categorical encoding explicitly if needed.
+                     'stock_exret_t_plus_3', 'stock_exret_t_plus_6', 'stock_exret_t_plus_12',
+                     'SHRCD']
+    
+    # Start with all columns
+    predictor_cols = df.columns.tolist()
+    
+    # Remove explicitly excluded columns
+    predictor_cols = [col for col in predictor_cols if col not in excluded_cols]
+    
+    # Remove columns starting with 'month_' or 'eps_'
+    predictor_cols = [col for col in predictor_cols if not (col.startswith('month_') or col.startswith('eps_'))]
+    
     return predictor_cols
 
 def main():
@@ -63,77 +72,119 @@ def main():
 
     print("Loading imputed datasets...")
     train_df = pd.read_parquet(TRAIN_IMPUTED_INPUT_PATH)
-    # val_df = pd.read_parquet(VALIDATION_IMPUTED_INPUT_PATH) # XGBoost can use an eval set
+    val_df = pd.read_parquet(VALIDATION_IMPUTED_INPUT_PATH)
     test_df = pd.read_parquet(TEST_IMPUTED_INPUT_PATH)
 
     print(f"Train df shape: {train_df.shape}")
-    # print(f"Validation df shape: {val_df.shape}")
+    print(f"Validation df shape: {val_df.shape}")
     print(f"Test df shape: {test_df.shape}")
 
-    for df_name, df_content in [('train', train_df), ('test', test_df)]: # ('val', val_df)
+    for df_name, df_content in [('train', train_df), ('validation', val_df), ('test', test_df)]:
+        if TARGET_COLUMN not in df_content.columns:
+            raise ValueError(f"Target column '{TARGET_COLUMN}' not found in {df_name}_df.")
         if df_content[TARGET_COLUMN].isnull().all():
-            raise ValueError(f"Target column '{TARGET_COLUMN}' in {df_name}_df is all NaNs.")
-        if TARGET_COLUMN in get_predictor_columns(df_content):
-             raise ValueError(f"Target column '{TARGET_COLUMN}' found in predictor list for {df_name}_df.")
+            if df_name in ['train', 'validation']:
+                raise ValueError(f"Target column '{TARGET_COLUMN}' in {df_name}_df is all NaNs.")
+            else:
+                print(f"Warning: Target column '{TARGET_COLUMN}' in {df_name}_df is all NaNs.")
 
     predictor_cols = get_predictor_columns(train_df)
+    if TARGET_COLUMN in predictor_cols:
+        print(f"Warning: Target column '{TARGET_COLUMN}' was found in predictor_cols. Removing it.")
+        predictor_cols.remove(TARGET_COLUMN)
     
-    # Ensure all predictor columns are numeric for XGBoost or handle encoding
-    # For simplicity, this script assumes imputation and prior processing handled non-numeric types appropriately
-    # or that XGBoost's internal handling is sufficient.
-    # Consider explicit label encoding for categorical features if not already done and if XGBoost version requires it.
-
-    X_train = train_df[predictor_cols]
+    X_train = train_df[predictor_cols].copy()
     y_train = train_df[TARGET_COLUMN]
-    # X_val = val_df[predictor_cols]
-    # y_val = val_df[TARGET_COLUMN]
-    X_test = test_df[predictor_cols]
+    X_val = val_df[predictor_cols].copy()
+    y_val = val_df[TARGET_COLUMN]
+    X_test = test_df[predictor_cols].copy()
     y_test = test_df[TARGET_COLUMN]
 
-    # Scaling continuous features (optional but often good practice)
-    # XGBoost is somewhat robust to feature scaling, but it doesn't hurt.
-    # We will only scale based on train_df to prevent data leakage.
-    # Identify continuous columns heuristically (non-object, non-int with many unique values)
-    # This step might need refinement based on your actual feature types.
-    
-    # For now, let's assume all predictor_cols are continuous or appropriately encoded.
-    # If you have explicit categorical columns that are not one-hot encoded, 
-    # XGBoost might require them to be label encoded or of pandas 'category' dtype.
-    # The current get_predictor_columns filters out month dummies, assuming other columns are numeric.
+    # --- Start y_train Diagnostics ---
+    print("\n--- y_train Diagnostics ---")
+    print(y_train.describe())
+    print(f"Number of unique values in y_train: {y_train.nunique()}")
+    print("--- End y_train Diagnostics ---\n")
+    # --- End y_train diagnostics ---
 
-    print("Scaling features...")
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    # X_val_scaled = scaler.transform(X_val)
-    X_test_scaled = scaler.transform(X_test)
+    # --- Preprocessing for specific categorical columns like 'size_port' ---
+    categorical_to_encode = []
+    for col in X_train.columns:
+        if X_train[col].dtype == 'object':
+            categorical_to_encode.append(col)
+            print(f"Identified column '{col}' for label encoding.")
 
-    X_train_scaled = pd.DataFrame(X_train_scaled, columns=X_train.columns, index=X_train.index)
-    # X_val_scaled = pd.DataFrame(X_val_scaled, columns=X_val.columns, index=X_val.index)
-    X_test_scaled = pd.DataFrame(X_test_scaled, columns=X_test.columns, index=X_test.index)
+    label_encoders = {}
+    for col in categorical_to_encode:
+        print(f"Label encoding column: {col}")
+        # Fill NaN/None with a placeholder string before encoding
+        X_train[col] = X_train[col].fillna('MISSING').astype(str)
+        X_val[col] = X_val[col].fillna('MISSING').astype(str)
+        X_test[col] = X_test[col].fillna('MISSING').astype(str)
+        
+        le = LabelEncoder()
+        # Fit on combined unique values from train, validation, and test to ensure consistency
+        all_unique_values = pd.concat([X_train[col], X_val[col], X_test[col]]).unique()
+        le.fit(all_unique_values)
+        
+        X_train[col] = le.transform(X_train[col])
+        X_val[col] = le.transform(X_val[col])
+        X_test[col] = le.transform(X_test[col])
+        label_encoders[col] = le
+    # --- End Categorical Preprocessing ---
+
+    # Identify columns for scaling (all predictor_cols MINUS the categoricals we just label encoded)
+    cols_to_scale = [col for col in predictor_cols if col not in categorical_to_encode]
+
+    if cols_to_scale:
+        print(f"Scaling features: {cols_to_scale}")
+        # Replace infinities with NaN, then fill NaNs with 0 before scaling
+        X_train[cols_to_scale] = X_train[cols_to_scale].replace([np.inf, -np.inf], np.nan)
+        X_val[cols_to_scale] = X_val[cols_to_scale].replace([np.inf, -np.inf], np.nan)
+        X_test[cols_to_scale] = X_test[cols_to_scale].replace([np.inf, -np.inf], np.nan)
+        
+        # Fill any NaNs (including those from replaced infinities) with 0
+        X_train[cols_to_scale] = X_train[cols_to_scale].fillna(0)
+        X_val[cols_to_scale] = X_val[cols_to_scale].fillna(0)
+        X_test[cols_to_scale] = X_test[cols_to_scale].fillna(0)
+
+        scaler = StandardScaler()
+        X_train[cols_to_scale] = scaler.fit_transform(X_train[cols_to_scale])
+        X_val[cols_to_scale] = scaler.transform(X_val[cols_to_scale])
+        X_test[cols_to_scale] = scaler.transform(X_test[cols_to_scale])
+    else:
+        print("No columns identified for scaling.")
+        scaler = None
+
+    # --- Start X_train Diagnostics (after preprocessing) ---
+    print("\n--- X_train Diagnostics (after preprocessing) ---")
+    low_variance_cols = X_train.nunique() == 1
+    print(f"Number of columns in X_train with only 1 unique value: {low_variance_cols.sum()}")
+    if low_variance_cols.sum() > 0:
+        print(f"Columns with 1 unique value: {X_train.columns[low_variance_cols].tolist()}")
+    print("--- End X_train Diagnostics ---\n")
+    # --- End X_train diagnostics ---
 
     print("Initializing and training XGBoost model...")
-    # Basic XGBoost parameters - these can be tuned extensively
     model = xgb.XGBRegressor(
-        objective='reg:squarederror', # for regression
-        n_estimators=100,             # Number of boosting rounds
-        learning_rate=0.1,
-        max_depth=3,
+        objective='reg:squarederror',
+        n_estimators=1000,
+        learning_rate=0.05,
+        max_depth=5,
         subsample=0.8,
         colsample_bytree=0.8,
         random_state=42,
-        # tree_method='gpu_hist' if torch.cuda.is_available() else 'hist', # Use GPU if available
-        # enable_categorical=True # If using pandas category dtypes for categoricals
-        # For GPU, ensure XGBoost is compiled with GPU support. Might need 'cuda' for tree_method
+        early_stopping_rounds=50
     )
 
-    # For early stopping, you would typically use an eval_set:
-    # model.fit(X_train_scaled, y_train, eval_set=[(X_val_scaled, y_val)], early_stopping_rounds=10, verbose=True)
-    model.fit(X_train_scaled, y_train, verbose=True) # Simpler fit for now
+    eval_set = [(X_train, y_train), (X_val, y_val)]
+
+    model.fit(X_train, y_train, eval_set=eval_set, verbose=100)
 
     print("Training finished.")
 
     print("Making predictions on the test set...")
-    predictions = model.predict(X_test_scaled)
+    predictions = model.predict(X_test)
 
     oos_r2 = r2_score(y_test, predictions)
     oos_mse = mean_squared_error(y_test, predictions)
@@ -141,34 +192,33 @@ def main():
     print(f"Out-of-Sample R2 Score: {oos_r2:.6f}")
     print(f"Out-of-Sample MSE: {oos_mse:.6f}")
 
-    print("Saving model, scaler, and predictions...")
+    print("Saving model, scaler, and label encoders...")
     os.makedirs(SAVED_MODEL_DIR, exist_ok=True)
     os.makedirs(PREDICTIONS_DIR, exist_ok=True)
     
     joblib.dump(model, MODEL_PATH)
-    joblib.dump(scaler, SCALER_PATH)
+    if scaler:
+        joblib.dump(scaler, SCALER_PATH)
+        print(f"Scaler saved to {SCALER_PATH}")
+    if label_encoders:
+        joblib.dump(label_encoders, LABEL_ENCODERS_PATH)
+        print(f"Label encoders saved to {LABEL_ENCODERS_PATH}")
     print(f"Model saved to {MODEL_PATH}")
-    print(f"Scaler saved to {SCALER_PATH}")
 
     predictions_df = pd.DataFrame({
-        ID_COLUMN: test_df[ID_COLUMN], # Make sure test_df still has ID and Date
+        ID_COLUMN: test_df[ID_COLUMN],
         DATE_COLUMN: test_df[DATE_COLUMN],
         'prediction': predictions
     })
     predictions_df.to_parquet(PREDICTIONS_PATH, index=False)
     print(f"Predictions saved to {PREDICTIONS_PATH}")
 
-    # --- Log Metrics ---
     metrics_to_log = {
         'out_of_sample_r2': oos_r2,
         'mse': oos_mse,
     }
     log_metrics_to_csv(MODEL_NAME, metrics_to_log)
-    if 'CSV_FILE' in globals():
-        print(f"Metrics logged to {CSV_FILE}")
-    else:
-        print("Metrics logged (CSV_FILE path not found for message).")
-    # --- End Log Metrics ---
+    print(f"Metrics logged to {CSV_FILE}")
 
     print(f"--- {MODEL_NAME} Model Script Complete ---")
 

@@ -16,9 +16,11 @@ from datetime import datetime # Added for timestamp
 PROCESSED_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'processed')
 TRAIN_IMPUTED_INPUT_PATH = os.path.join(PROCESSED_DIR, 'train_features_imputed.parquet')
 VALIDATION_IMPUTED_INPUT_PATH = os.path.join(PROCESSED_DIR, 'validation_features_imputed.parquet')
+TEST_IMPUTED_INPUT_PATH = os.path.join(PROCESSED_DIR, 'test_features_imputed.parquet')
 
 SAVED_MODEL_DIR = os.path.join(os.path.dirname(__file__), '..', 'saved_models')
 PREDICTIONS_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'predictions')
+RESULTS_PRED_DIR = os.path.join(os.path.dirname(__file__), '..', 'results')
 
 MODEL_NAME = 'tabnet'
 TARGET_COLUMN = 'stock_exret'
@@ -64,6 +66,7 @@ def main():
     try:
         train_df = pd.read_parquet(TRAIN_IMPUTED_INPUT_PATH)
         validation_df = pd.read_parquet(VALIDATION_IMPUTED_INPUT_PATH)
+        test_df = pd.read_parquet(TEST_IMPUTED_INPUT_PATH)
         print("Datasets loaded successfully.")
     except Exception as e: print(f"Error loading data: {e}"); return
 
@@ -93,9 +96,17 @@ def main():
     X_validation_np = X_validation.fillna(0).to_numpy()
     y_validation_np = y_validation.to_numpy() # This is for evaluation, y_validation for fit needs to be 2D
 
+    # Prepare test data
+    X_test = test_df[predictor_cols].copy()
+    # y_test is not strictly needed for prediction but good for consistency if available
+    # For now, we assume we only need X_test for predictions.
+    # Handle NaNs in X_test (target y_test is not used for prediction itself)
+    X_test_np = X_test.fillna(0).to_numpy()
+
     # Handle potential infinities after fillna(0) (though unlikely if data is from imputation script)
     X_train_np = np.nan_to_num(X_train_np, nan=0.0, posinf=1e9, neginf=-1e9)
     X_validation_np = np.nan_to_num(X_validation_np, nan=0.0, posinf=1e9, neginf=-1e9)
+    X_test_np = np.nan_to_num(X_test_np, nan=0.0, posinf=1e9, neginf=-1e9) # Handle infinities in test data
     print("Converted data to NumPy, filled NaNs with 0, and handled infinities.")
 
     # --- TabNet Model Training ---
@@ -149,16 +160,40 @@ def main():
     model.save_model(model_save_path_zip)
     print(f"TabNet model saved to {model_save_path_zip}.zip")
 
-    # --- Save Predictions ---
+    # --- Save Validation Predictions (Parquet) ---
+    # This part remains for detailed validation set predictions if needed
     os.makedirs(PREDICTIONS_DIR, exist_ok=True)
     # Create a DataFrame for predictions using original validation_df for permno and date
     # Ensure y_validation (original Series/DataFrame column) and y_pred_validation (numpy array) align
-    predictions_df = validation_df[['permno', 'date']].iloc[y_validation.index] # Align if rows were dropped from y_validation
-    predictions_df['actual_' + TARGET_COLUMN] = y_validation_np.flatten()
-    predictions_df['predicted_' + TARGET_COLUMN] = y_pred_validation.flatten()
-    predictions_save_path = os.path.join(PREDICTIONS_DIR, f"{MODEL_NAME}_validation_predictions.parquet")
-    predictions_df.to_parquet(predictions_save_path, index=False)
-    print(f"Validation predictions saved to {predictions_save_path}")
+    
+    # It's crucial that validation_df still has the original index after potential row drops from y_validation
+    # to correctly align 'permno' and 'date'.
+    # If y_validation was a Series derived from validation_df[TARGET_COLUMN], its index is from validation_df.
+    
+    val_predictions_df = validation_df.loc[y_validation.index, ['permno', 'date']].copy()
+    val_predictions_df['actual_' + TARGET_COLUMN] = y_validation_np.flatten()
+    val_predictions_df['predicted_' + TARGET_COLUMN] = y_pred_validation.flatten()
+    val_predictions_save_path = os.path.join(PREDICTIONS_DIR, f"{MODEL_NAME}_validation_predictions.parquet")
+    val_predictions_df.to_parquet(val_predictions_save_path, index=False)
+    print(f"Validation predictions saved to {val_predictions_save_path}")
+
+    # --- Make Predictions on Test Set ---
+    print("\nMaking predictions on test set...")
+    y_pred_test = model.predict(X_test_np)
+
+    # --- Save Test Predictions (CSV) ---
+    os.makedirs(RESULTS_PRED_DIR, exist_ok=True)
+    # Create a DataFrame for test predictions using original test_df for permno and date
+    # We assume test_df's index aligns with X_test_np's rows
+    test_predictions_df = test_df[['permno', 'date']].copy()
+    test_predictions_df['prediction'] = y_pred_test.flatten() # As per outline: permno, date, prediction
+    
+    # Define CSV output path as per outline e.g., results/pred_tabnet.csv
+    csv_output_filename = f"pred_{MODEL_NAME}.csv"
+    csv_predictions_save_path = os.path.join(RESULTS_PRED_DIR, csv_output_filename)
+    
+    test_predictions_df.to_csv(csv_predictions_save_path, index=False)
+    print(f"Test predictions saved to {csv_predictions_save_path}")
         
     # --- Log Metrics ---
     metrics_to_log = {
