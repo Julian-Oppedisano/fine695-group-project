@@ -10,7 +10,7 @@ import typing
 from omegaconf import DictConfig
 from omegaconf.base import ContainerMetadata
 if hasattr(torch.serialization, 'add_safe_globals') and callable(torch.serialization.add_safe_globals):
-    torch.serialization.add_safe_globals([DictConfig, ContainerMetadata, typing.Any])
+    torch.serialization.add_safe_globals([DictConfig, ContainerMetadata, typing.Any, dict])
 
 from pytorch_tabular.tabular_model import TabularModel
 from pytorch_tabular.models import FTTransformerConfig
