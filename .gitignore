@@ -164,4 +164,6 @@ ehthumbs.db
 Thumbs.db
 
 # Project-specific ignores
-data/processed/*.parquet 
+data/processed/*.parquet
+data/raw/course_panel.parquet
+data/raw/goup_project_sample_v3.csv 
